@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Jolt Collaborators Tab
 // @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
-// @version      1.0.0
+// @version      1.0.1
 // @description  Adds the collaborators tab on GameJolt games.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
@@ -247,7 +247,7 @@ let WillBeGamePage = true;
 let IsNavigating = false;
 let GamePath = "";
 navigation.addEventListener('navigate', (ev) => {
-    if (ev.navigationType === "push") {
+    if (ev.navigationType === "push" || ev.navigationType === "traverse") {
         IsNavigating = true;
         let path = (new URL(ev.destination.url).pathname).split("/");
         if (path[1] === "games" && path.length === 4) {
@@ -255,7 +255,7 @@ navigation.addEventListener('navigate', (ev) => {
             WillBeGamePage = true;
             GamePath = new URL(ev.destination.url).pathname;
         }
-        else if (path[1] === "games" && path.length >= 4) {
+        else if (path[1] === "games" && path.length > 4) {
             WillBeGamePageOverview = false;
             WillBeGamePage = true;
             GamePath = new URL(ev.destination.url).pathname;
@@ -263,18 +263,18 @@ navigation.addEventListener('navigate', (ev) => {
         else {
             WillBeGamePageOverview = false;
             WillBeGamePage = false;
-            GamePath = "";
+            GamePath = new URL(ev.destination.url).pathname;
         }
     }
 });
 navigation.addEventListener('navigatesuccess', (ev) => {
     if (IsNavigating) {
         IsNavigating = false;
-        if (WillBeGamePage) {
+        if (WillBeGamePageOverview) {
             let HasID = undefined;
             if ((ErrorMsg || AddedAlready) && document.querySelector('a[href="javascript:void(0)"]')) {
                 try {
-                    const GameID = GamePath.split("\"/games/")[1].split("/")[1].split("\"")[0];
+                    const GameID = GamePath.split("/games/")[1].split("/")[1];
                     if (GameID !== LastGameIDDetected) {
                         ErrorMsg = false;
                         AddedAlready = true;
