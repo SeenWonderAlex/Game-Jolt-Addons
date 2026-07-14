@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Jolt Feed Preserver
 // @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
-// @version      1.0.0
+// @version      1.0.1
 // @description  Preserve deleted posts of your following feed. This also gives the option to default the following tab on Game Jolt.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
@@ -204,13 +204,12 @@ function setupHook(xhr) {
                 periodStart = 0;
             }
             let listOfPosts = json.payload.items;
-            let newCache = GetPosts(periodStart, periodEnd);
-            let deletedposts = [...newCache];
+            let deletedposts = GetPosts(periodStart, periodEnd);
             for (const listedPost of listOfPosts) {
-                for (const post of newCache) {
+                for (let i = deletedposts.length - 1; i >= 0; i--) {
+                    const post = deletedposts[i];
                     if (post.hash === listedPost.action_resource_model.hash) {
-                        deletedposts.splice(deletedposts[post.hash], 1);
-                        break;
+                        deletedposts.splice(i, 1);
                     }
                 }
             }
@@ -425,8 +424,8 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
                 this.send = function (body) {
                     console.warn("[Game Jolt Feed Reserver] Ignoring post recommendations of a deleted post");
                     Object.defineProperty(this, 'readyState', {
-                    value: XMLHttpRequest.DONE,
-                    configurable: true
+                        value: XMLHttpRequest.DONE,
+                        configurable: true
                     });
                     Object.defineProperty(this, 'status', {
                         value: 200,
