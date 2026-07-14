@@ -1,11 +1,15 @@
 // ==UserScript==
 // @name         Game Jolt Feed Preserver
-// @namespace    http://tampermonkey.net/
-// @version      2026-07-14
-// @description  Cache your feed's posts.
+// @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
+// @version      1.0.0
+// @description  Preserve deleted posts of your following feed. This also gives the option to default the following tab on Game Jolt.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=gamejolt.com
+// @updateURL    https://github.com/SeenWonderAlex/Game-Jolt-Addons/raw/refs/heads/main/Game%20Jolt%20Feed%20Preserver.user.js
+// @downloadURL  https://github.com/SeenWonderAlex/Game-Jolt-Addons/raw/refs/heads/main/Game%20Jolt%20Feed%20Preserver.user.js
+// @run-at       document-start
+// @inject-into  page
 // @grant        none
 // ==/UserScript==
 var cachedPosts = {};

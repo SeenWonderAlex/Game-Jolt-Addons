@@ -1,13 +1,15 @@
 // ==UserScript==
 // @name         Game Jolt Collaborators Tab
-// @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
 // @version      1.0.0
 // @description  Adds the collaborators tab on GameJolt games.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=gamejolt.com
-// 
+// @updateURL    https://github.com/SeenWonderAlex/Game-Jolt-Addons/raw/refs/heads/main/Game%20Jolt%20Collaboration%20Tab.user.js
+// @downloadURL  https://github.com/SeenWonderAlex/Game-Jolt-Addons/raw/refs/heads/main/Game%20Jolt%20Collaboration%20Tab.user.js
 // @run-at       document-idle
+// @inject-into  page
 // @grant        none
 // ==/UserScript==
 /**
@@ -78,7 +80,6 @@ function WaitForAnElement(selector) {
             }
         });
 
-        // If you get "parameter 1 is not of type 'Node'" error, see https://stackoverflow.com/a/77855838/492336
         observer.observe(document.body, {
             childList: true,
             subtree: true
