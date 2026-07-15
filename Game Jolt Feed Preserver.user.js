@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Jolt Feed Preserver
 // @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
-// @version      1.0.2
+// @version      1.0.3
 // @description  Preserve deleted posts of your following feed. This also gives the option to default the following tab on Game Jolt.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
@@ -14,6 +14,7 @@
 // ==/UserScript==
 var cachedPosts = {};
 var deletedPosts = {};
+var displayedPosts = {};
 
 let periodStart = 0;
 let periodEnd = new Date().getTime();
@@ -122,10 +123,10 @@ function GetPosts(PeriodStart = 0, PeriodEnd = 0) {
     if (PeriodEnd == 0) {
         PeriodEnd = new Date().getTime();
     }
-    let list = [];
+    let list = {};
     for (const cachedPost of Object.values(cachedPosts)) {
         if (cachedPost.added_on >= PeriodStart && cachedPost.added_on <= PeriodEnd) {
-            list.push(cachedPost);
+            list[cachedPost.hash] = cachedPost;
         }
     }
     console.log("[Game Jolt Feed Perserver] Returned list from " + PeriodStart + " to " + PeriodEnd);
@@ -204,15 +205,24 @@ function setupHook(xhr) {
                 periodStart = 0;
             }
             let listOfPosts = json.payload.items;
-            let deletedposts = GetPosts(periodStart, periodEnd);
+            var deletedpostslist = GetPosts(periodStart, periodEnd);
             for (const listedPost of listOfPosts) {
-                for (let i = deletedposts.length - 1; i >= 0; i--) {
-                    const post = deletedposts[i];
-                    if (post.hash === listedPost.action_resource_model.hash) {
-                        deletedposts.splice(i, 1);
-                    }
+                displayedPosts[listedPost.action_resource_model.hash] = true;
+                if (deletedpostslist[listedPost.action_resource_model.hash])
+                {
+                    deletedpostslist[listedPost.action_resource_model.hash] = undefined;
+                    delete deletedpostslist[listedPost.action_resource_model.hash];
                 }
             }
+            for (const checkPost of Object.values(deletedpostslist))
+            {
+                if (displayedPosts[checkPost.hash])
+                {
+                    deletedpostslist[checkPost.hash] = undefined;
+                    delete deletedpostslist[checkPost.hash];
+                }
+            }
+            let deletedposts = Object.values(deletedpostslist);
             UpdateDeletedPosts(deletedposts);
             let deletedPostsResources = [];
             for (let deletedPost of deletedposts) {
@@ -376,6 +386,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
             }
         });
         periodEnd = new Date().getTime();
+        displayedPosts = {};
     }
     else if (url.includes("gamejolt.com/site-api/web/dash/activity/more/activity") && method === "POST") {
         if (!this._hooked) {
@@ -404,6 +415,10 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
                     const bod = JSON.parse(body);
                     if (!bod.scrollId) {
                         periodEnd = new Date().getTime();
+                    }
+                    else if (periodStart > 0)
+                    {
+                        periodEnd = Math.min(periodStart, parseFloat(JSON.parse(bod.scrollId).pos) * 1000);
                     }
                     else {
                         periodEnd = parseFloat(JSON.parse(bod.scrollId).pos) * 1000;
