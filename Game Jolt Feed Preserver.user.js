@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Jolt Feed Preserver
 // @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
-// @version      1.0.1
+// @version      1.0.2
 // @description  Preserve deleted posts of your following feed. This also gives the option to default the following tab on Game Jolt.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
@@ -213,7 +213,6 @@ function setupHook(xhr) {
                     }
                 }
             }
-            delete newCache;
             UpdateDeletedPosts(deletedposts);
             let deletedPostsResources = [];
             for (let deletedPost of deletedposts) {
@@ -407,7 +406,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
                         periodEnd = new Date().getTime();
                     }
                     else {
-                        periodEnd = parseFloat(JSON.parse(bod.scrollId).pos);
+                        periodEnd = parseFloat(JSON.parse(bod.scrollId).pos) * 1000;
                     }
                 } catch (error) {
                     console.error(error);
