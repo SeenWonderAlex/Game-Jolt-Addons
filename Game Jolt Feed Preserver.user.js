@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Jolt Feed Preserver
 // @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
-// @version      1.0.3
+// @version      1.0.4
 // @description  Preserve deleted posts of your following feed. This also gives the option to default the following tab on Game Jolt.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
@@ -108,15 +108,17 @@ function UpdateDeletedPosts(newPosts = []) {
         const postContents = document.querySelectorAll('.fireside-post-lead-content');
         for (const postContent of postContents) {
             const span = postContent.querySelector('span');
-            const text = span.innerText;
-            for (const newPost of newPosts) {
-                if (text === newPost.leadStr) {
-                    postContent.closest(".AppBackground").parentElement.style.filter = "grayscale(0.7)";
-                    break;
+            if (span) {
+                const text = span.innerText;
+                for (const newPost of newPosts) {
+                    if (text === newPost.leadStr) {
+                        postContent.closest(".AppBackground").parentElement.style.filter = "grayscale(0.7)";
+                        break;
+                    }
                 }
             }
         }
-    }, 100)
+    }, 150)
 }
 
 function GetPosts(PeriodStart = 0, PeriodEnd = 0) {
@@ -125,7 +127,7 @@ function GetPosts(PeriodStart = 0, PeriodEnd = 0) {
     }
     let list = {};
     for (const cachedPost of Object.values(cachedPosts)) {
-        if (cachedPost.added_on >= PeriodStart && cachedPost.added_on <= PeriodEnd) {
+        if (cachedPost.added_on > PeriodStart && cachedPost.added_on <= PeriodEnd) {
             list[cachedPost.hash] = cachedPost;
         }
     }
@@ -208,16 +210,13 @@ function setupHook(xhr) {
             var deletedpostslist = GetPosts(periodStart, periodEnd);
             for (const listedPost of listOfPosts) {
                 displayedPosts[listedPost.action_resource_model.hash] = true;
-                if (deletedpostslist[listedPost.action_resource_model.hash])
-                {
+                if (deletedpostslist[listedPost.action_resource_model.hash]) {
                     deletedpostslist[listedPost.action_resource_model.hash] = undefined;
                     delete deletedpostslist[listedPost.action_resource_model.hash];
                 }
             }
-            for (const checkPost of Object.values(deletedpostslist))
-            {
-                if (displayedPosts[checkPost.hash])
-                {
+            for (const checkPost of Object.values(deletedpostslist)) {
+                if (displayedPosts[checkPost.hash]) {
                     deletedpostslist[checkPost.hash] = undefined;
                     delete deletedpostslist[checkPost.hash];
                 }
@@ -416,8 +415,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
                     if (!bod.scrollId) {
                         periodEnd = new Date().getTime();
                     }
-                    else if (periodStart > 0)
-                    {
+                    else if (periodStart > 0) {
                         periodEnd = Math.min(periodStart, parseFloat(JSON.parse(bod.scrollId).pos) * 1000);
                     }
                     else {
