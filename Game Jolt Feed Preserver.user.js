@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Jolt Feed Preserver
 // @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
-// @version      1.0.4
+// @version      1.0.6
 // @description  Preserve deleted posts of your following feed. This also gives the option to default the following tab on Game Jolt.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
@@ -206,13 +206,26 @@ function setupHook(xhr) {
             else {
                 periodStart = 0;
             }
-            let listOfPosts = json.payload.items;
+            var listOfPosts = json.payload.items;
             var deletedpostslist = GetPosts(periodStart, periodEnd);
-            for (const listedPost of listOfPosts) {
+            let l = listOfPosts.length;
+            for (let i = 0; i < l; i++) {
+                const listedPost = listOfPosts[i];
                 displayedPosts[listedPost.action_resource_model.hash] = true;
                 if (deletedpostslist[listedPost.action_resource_model.hash]) {
                     deletedpostslist[listedPost.action_resource_model.hash] = undefined;
                     delete deletedpostslist[listedPost.action_resource_model.hash];
+                }
+                if (deletedPosts[listedPost.action_resource_model.hash]) // That means it's on the deleted list for a weird reason... remove it from there and simply remove from the payload to prevent duplicates.
+                {
+                    deletedPosts[listedPost.action_resource_model.hash] = undefined;
+                    delete deletedPosts[listedPost.action_resource_model.hash];
+                    console.log("[Game Jolt Feed Preserver] Detected a thought-of-deleted post that is not deleted [" + listedPost.action_resource_model.hash + "]. Stats may be out of date.");
+                    UpdateCachedPosts([listedPost.action_resource_model]);
+
+                    listOfPosts.splice(listOfPosts.indexOf(listedPost), 1);
+                    i--;
+                    l--;
                 }
             }
             for (const checkPost of Object.values(deletedpostslist)) {
