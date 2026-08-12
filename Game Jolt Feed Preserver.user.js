@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Jolt Feed Preserver
 // @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
-// @version      1.0.6
+// @version      1.0.7
 // @description  Preserve deleted posts of your following feed. This also gives the option to default the following tab on Game Jolt.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
@@ -17,7 +17,8 @@ var deletedPosts = {};
 var displayedPosts = {};
 
 let periodStart = 0;
-let periodEnd = new Date().getTime();
+let periodEnd = 0;
+let periodEndNewtime = true;
 
 let cachedChildComments = [];
 let currentDeletedPost = undefined;
@@ -107,11 +108,11 @@ function UpdateDeletedPosts(newPosts = []) {
     setTimeout(() => {
         const postContents = document.querySelectorAll('.fireside-post-lead-content');
         for (const postContent of postContents) {
-            const span = postContent.querySelector('span');
+            const span = postContent.querySelector('.link-unstyled[href]>span');
             if (span) {
-                const text = span.innerText;
+                const text = span.parentElement.href;
                 for (const newPost of newPosts) {
-                    if (text === newPost.leadStr) {
+                    if (text === newPost.url) {
                         postContent.closest(".AppBackground").parentElement.style.filter = "grayscale(0.7)";
                         break;
                     }
@@ -131,7 +132,7 @@ function GetPosts(PeriodStart = 0, PeriodEnd = 0) {
             list[cachedPost.hash] = cachedPost;
         }
     }
-    console.log("[Game Jolt Feed Perserver] Returned list from " + PeriodStart + " to " + PeriodEnd);
+    console.log("[Game Jolt Feed Preserver] Returned list from " + PeriodStart + " to " + PeriodEnd);
     return list;
 }
 
@@ -200,14 +201,19 @@ function setupHook(xhr) {
                     json.user.created_on = 1666742400 * 1000;
                 }
             }
+            let perStart = periodStart;
             if (json.payload.items && typeof json.payload.items === "object" && json.payload.items.length > 0) {
-                periodStart = json.payload.items[json.payload.items.length - 1].added_on;
+                perStart = json.payload.items[json.payload.items.length - 1].added_on;
+                if (!periodEndNewtime)
+                {
+                    periodStart = perStart;
+                }
             }
             else {
-                periodStart = 0;
+                perStart = 0;
             }
             var listOfPosts = json.payload.items;
-            var deletedpostslist = GetPosts(periodStart, periodEnd);
+            var deletedpostslist = GetPosts(perStart, periodEndNewtime ? 0 : periodEnd);
             let l = listOfPosts.length;
             for (let i = 0; i < l; i++) {
                 const listedPost = listOfPosts[i];
@@ -220,7 +226,7 @@ function setupHook(xhr) {
                 {
                     deletedPosts[listedPost.action_resource_model.hash] = undefined;
                     delete deletedPosts[listedPost.action_resource_model.hash];
-                    console.log("[Game Jolt Feed Preserver] Detected a thought-of-deleted post that is not deleted [" + listedPost.action_resource_model.hash + "]. Stats may be out of date.");
+                    console.warn("[Game Jolt Feed Preserver] Detected a thought-of-deleted post that is not deleted [" + listedPost.action_resource_model.hash + "]. Stats may be out of date.");
                     UpdateCachedPosts([listedPost.action_resource_model]);
 
                     listOfPosts.splice(listOfPosts.indexOf(listedPost), 1);
@@ -234,6 +240,8 @@ function setupHook(xhr) {
                     delete deletedpostslist[checkPost.hash];
                 }
             }
+            console.log(listOfPosts);
+            console.log(deletedPosts);
             let deletedposts = Object.values(deletedpostslist);
             UpdateDeletedPosts(deletedposts);
             let deletedPostsResources = [];
@@ -392,12 +400,12 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
                     postList.push(listedPost.action_resource_model);
                 }
                 UpdateCachedPosts(postList);
-                console.log("[Game Jolt Feed Perserver] Cached " + postList.length + " posts");
+                console.log("[Game Jolt Feed Preserver] Cached " + postList.length + " posts");
             } catch (error) {
                 console.error(error);
             }
         });
-        periodEnd = new Date().getTime();
+        periodEndNewtime = true;
         displayedPosts = {};
     }
     else if (url.includes("gamejolt.com/site-api/web/dash/activity/more/activity") && method === "POST") {
@@ -415,7 +423,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
                     postList.push(listedPost.action_resource_model);
                 }
                 UpdateCachedPosts(postList);
-                console.log("[Game Jolt Feed Perserver] Cached " + postList.length + " posts");
+                console.log("[Game Jolt Feed Preserver] Cached " + postList.length + " posts");
             } catch (error) {
                 console.error(error);
             }
@@ -426,12 +434,14 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
                 try {
                     const bod = JSON.parse(body);
                     if (!bod.scrollId) {
-                        periodEnd = new Date().getTime();
+                        periodEndNewtime = true;
                     }
                     else if (periodStart > 0) {
+                        periodEndNewtime = false;
                         periodEnd = Math.min(periodStart, parseFloat(JSON.parse(bod.scrollId).pos) * 1000);
                     }
                     else {
+                        periodEndNewtime = false;
                         periodEnd = parseFloat(JSON.parse(bod.scrollId).pos) * 1000;
                     }
                 } catch (error) {
