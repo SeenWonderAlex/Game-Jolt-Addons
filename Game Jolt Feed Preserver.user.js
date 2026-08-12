@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Jolt Feed Preserver
 // @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
-// @version      1.0.7
+// @version      1.0.8
 // @description  Preserve deleted posts of your following feed. This also gives the option to default the following tab on Game Jolt.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
@@ -108,7 +108,7 @@ function UpdateDeletedPosts(newPosts = []) {
     setTimeout(() => {
         const postContents = document.querySelectorAll('.fireside-post-lead-content');
         for (const postContent of postContents) {
-            const span = postContent.querySelector('.link-unstyled[href]>span');
+            const span = postContent.closest('.AppBackground').querySelector('.link-unstyled[href]>span');
             if (span) {
                 const text = span.parentElement.href;
                 for (const newPost of newPosts) {
