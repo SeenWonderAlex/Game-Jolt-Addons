@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Jolt Feed Preserver
 // @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
-// @version      1.0.9
+// @version      1.0.10
 // @description  Preserve deleted posts of your following feed. This also gives the option to default the following tab on Game Jolt.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
