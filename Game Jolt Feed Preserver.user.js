@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Jolt Feed Preserver
 // @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
-// @version      1.0.8
+// @version      1.0.9
 // @description  Preserve deleted posts of your following feed. This also gives the option to default the following tab on Game Jolt.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
@@ -19,6 +19,8 @@ var displayedPosts = {};
 let periodStart = 0;
 let periodEnd = 0;
 let periodEndNewtime = true;
+let lastWidthCheck = window.innerWidth;
+let isTraversingBack = false;
 
 let cachedChildComments = [];
 let currentDeletedPost = undefined;
@@ -94,6 +96,21 @@ function UpdateCachedPosts(newPosts = []) {
     localStorage.setItem("gjcacheposts", JSON.stringify(cachedPosts));
 }
 
+function DeleteCachedPost(hash) {
+    if (CheckCacheEveryCheck && localStorage.getItem("gjcacheposts") !== null) {
+        try {
+            cachedPosts = JSON.parse(localStorage.getItem("gjcacheposts"));
+        } catch (error) {
+            console.error("[Game Jolt Feed Preserver] Failed to load cached posts. Overriding.");
+        }
+    }
+    if (cachedPosts[hash])
+    {
+        console.log("[Game Jolt Feed Preserver] Successfully deleted post " + hash + " off the cache.");
+        delete cachedPosts[hash];
+    }
+    localStorage.setItem("gjcacheposts", JSON.stringify(cachedPosts));
+}
 
 function UpdateDeletedPosts(newPosts = []) {
     for (const newPost of newPosts) {
@@ -113,7 +130,36 @@ function UpdateDeletedPosts(newPosts = []) {
                 const text = span.parentElement.href;
                 for (const newPost of newPosts) {
                     if (text === newPost.url) {
-                        postContent.closest(".AppBackground").parentElement.style.filter = "grayscale(0.7)";
+                        const ele = postContent.closest(".AppBackground").parentElement;
+                        if (ele.style.filter.length <= 0) { // Prevent duplicate functions.
+                            ele.style.filter = "grayscale(0.7)";
+                            ele.querySelector('.popper>button').addEventListener('click', (ev) => {
+                                setTimeout(() => {
+                                    const popperWrapper = document.querySelector('.popper-wrapper');
+                                    if (popperWrapper)
+                                    {
+                                        if (popperWrapper.querySelector('.jolticon-remove'))
+                                        {
+                                            popperWrapper.querySelector('.jolticon-remove').parentElement.remove();
+                                        }
+                                        const clonedButton = popperWrapper.querySelector('.jolticon-link').parentElement.cloneNode(true);
+                                        clonedButton.querySelector('.jolticon').classList.remove("jolticon-link");
+                                        clonedButton.querySelector('.jolticon').classList.add("jolticon-remove");
+                                        clonedButton.querySelector('.jolticon').classList.add("notice");
+                                        clonedButton.childNodes[1].nodeValue = " Remove (cached)"
+                                        clonedButton.addEventListener('click', (ev) => {
+                                            if (confirm("Are you sure you want to remove this cached post? It can't be restored once removed."))
+                                            {
+                                                DeleteCachedPost(newPost.hash);
+                                                popperWrapper.remove();
+                                                ele.closest('.-item').remove();
+                                            }
+                                        });
+                                        popperWrapper.querySelector('.list-group').appendChild(clonedButton);
+                                    }
+                                }, 50);
+                            })
+                        }
                         break;
                     }
                 }
@@ -173,7 +219,7 @@ function GetArticleFromHashedPost(postId) {
         return cachedPosts[postId].article_content;
     }
     else {
-        return JSON.stringify({ "version": "4", "createdOn": 1783937123689, "context": "fireside-post-article", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "[We could not preserve the article]" }] }], "hydration": [] });
+        return JSON.stringify({ "version": "4", "createdOn": 1783937123689, "context": "fireside-post-article", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "[We could not preserve the article before it was deleted]" }] }], "hydration": [] });
     }
 }
 
@@ -204,8 +250,7 @@ function setupHook(xhr) {
             let perStart = periodStart;
             if (json.payload.items && typeof json.payload.items === "object" && json.payload.items.length > 0) {
                 perStart = json.payload.items[json.payload.items.length - 1].added_on;
-                if (!periodEndNewtime)
-                {
+                if (!periodEndNewtime) {
                     periodStart = perStart;
                 }
             }
@@ -240,8 +285,6 @@ function setupHook(xhr) {
                     delete deletedpostslist[checkPost.hash];
                 }
             }
-            console.log(listOfPosts);
-            console.log(deletedPosts);
             let deletedposts = Object.values(deletedpostslist);
             UpdateDeletedPosts(deletedposts);
             let deletedPostsResources = [];
@@ -406,13 +449,26 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
             }
         });
         periodEndNewtime = true;
-        displayedPosts = {};
+
+        if (isTraversingBack) {
+            isTraversingBack = false;
+            console.log("[Game Jolt Feed Preserver] Automatically detected the first 5 posts being refreshed due to back button.");
+        }
+        else if ((lastWidthCheck >= 1200 && window.innerWidth < 1200) || (window.innerWidth >= 1200 && lastWidthCheck < 1200)) // Game Jolt automatically refresh the first 5 posts if resized above or below 1200px, which messes up the displayed posts system. Ignore clearing the displayed posts to avoid posts from appearing as deleted.
+        {
+            console.log("[Game Jolt Feed Preserver] Automatically detected the first 5 posts being refreshed due to width change.");
+        }
+        else {
+            displayedPosts = {};
+        }
+        lastWidthCheck = window.innerWidth;
     }
     else if (url.includes("gamejolt.com/site-api/web/dash/activity/more/activity") && method === "POST") {
         if (!this._hooked) {
             this._hooked = true;
             setupHook(this);
         }
+        lastWidthCheck = window.innerWidth;
         this.addEventListener('load', function () {
             this.responseText;
             try {
@@ -453,6 +509,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
         };
     }
     else if (url.includes("/site-api/web/posts/recommendations/")) {
+        lastWidthCheck = window.innerWidth;
         try {
             const post_id = parseInt(url.split("/site-api/web/posts/recommendations/")[1])
             if (isDeletedPost(post_id)) {
@@ -494,6 +551,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
         }
     }
     else if (url.includes("/site-api/web/posts/view/")) {
+        lastWidthCheck = window.innerWidth;
         const post_slug = url.split("/site-api/web/posts/view/")[1]
 
         if (location.search === "?cached") {
@@ -558,6 +616,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
         }
     }
     else if (url.includes("/site-api/comments/Fireside_Post/")) {
+        lastWidthCheck = window.innerWidth;
         const post_id = parseInt(url.split("/site-api/comments/Fireside_Post/")[1].split("/")[0]);
         if (isDeletedPost(post_id)) {
             this.send = function (body) {
@@ -620,7 +679,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
                 this.dispatchEvent(new ProgressEvent("loadend"));
             }
         }
-        else if (!isNaN(post_id) && !url.endsWith("/you") && Set_CacheComments) { // Avoid using the You tab to perserve comments
+        else if (!isNaN(post_id) && !url.endsWith("/you") && Set_CacheComments) { // Avoid using the You tab to preserve comments
             cachedChildComments = [];
             currentDeletedPost = undefined;
             this.addEventListener('load', function () {
@@ -634,6 +693,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
         }
     }
     else if (url.includes("/site-api/comments/get-thread/")) {
+        lastWidthCheck = window.innerWidth;
         const post_id = parseInt(url.split("/site-api/comments/get-thread/")[1]);
         if (Array.isArray(cachedChildComments) && cachedChildComments.length > 0) {
             let currentComment = undefined;
@@ -707,6 +767,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
         }
     }
     else if (url.includes("/site-api/web/posts/article/")) {
+        lastWidthCheck = window.innerWidth;
         const post_id = parseInt(url.split("/site-api/web/posts/article/")[1].split("/")[0]);
         if (isDeletedPost(post_id)) {
             this.send = function (body) {
@@ -730,7 +791,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
                     value: JSON.stringify({
                         ...RegularOutput, ...{
                             "payload": {
-                                "article_content": GetArticleFromHashedPost(getDeletedPost(post_id).hash)
+                                "article": GetArticleFromHashedPost(getDeletedPost(post_id).hash)
                             }
                         }
                     }),
@@ -752,6 +813,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
         }
     }
     else if (url.includes("/site-api/web/touch") || url.includes("/site-api/web/dash/home") || url.includes("/site-api/web/dash/shell") || url.includes("/site-api/web/posts/for-you")) {
+        lastWidthCheck = window.innerWidth;
         if (!this._hooked) {
             this._hooked = true;
             setupDiffHook(this);
@@ -759,6 +821,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
     }
     else if (url.endsWith("/site-api/web/dash/account") && method === "GET") // To check if it's on the settings page. That's all, no interception.
     {
+        lastWidthCheck = window.innerWidth;
         const CreateToggleHTML = (Name, Desc, Checked, ID) => {
             let HTML = document.querySelector('div.toggle').parentElement.parentElement.outerHTML;
             HTML = HTML.replace("Allow shouts?", Name);
@@ -859,6 +922,15 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
 
     return oldXHROpen.apply(this, arguments);
 };
+
+navigation.addEventListener("navigate", (event) => {
+    if (event.navigationType === "traverse") {
+        const pathname = new URL(event.destination.url).pathname;
+        if ((pathname === "/" && Set_FollowingPage) || pathname === "/activity" && !Set_FollowingPage) {
+            isTraversingBack = true;
+        }
+    }
+});
 
 let property = Object.getOwnPropertyDescriptor(MessageEvent.prototype, "data");
 
