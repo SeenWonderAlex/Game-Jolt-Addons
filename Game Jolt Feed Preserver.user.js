@@ -82,7 +82,7 @@ function UpdateCachedPosts(newPosts = []) {
             cachedPosts[postId] = newPost;
         }
     }
-    if (Set_Days < 30) {
+    if (Set_Days < 99) {
         try {
             for (const cachedPost of Object.values(cachedPosts)) {
                 if (cachedPost.added_on <= new Date(Date.now() - (86400000 * Set_Days))) {
@@ -146,9 +146,9 @@ function UpdateDeletedPosts(newPosts = []) {
                                         clonedButton.querySelector('.jolticon').classList.remove("jolticon-link");
                                         clonedButton.querySelector('.jolticon').classList.add("jolticon-remove");
                                         clonedButton.querySelector('.jolticon').classList.add("notice");
-                                        clonedButton.childNodes[1].nodeValue = " Remove (cached)"
+                                        clonedButton.childNodes[1].nodeValue = " Remove (preserved)"
                                         clonedButton.addEventListener('click', (ev) => {
-                                            if (confirm("Are you sure you want to remove this cached post? It can't be restored once removed."))
+                                            if (confirm("Are you sure you want to remove this preserved post? It can't be restored once removed."))
                                             {
                                                 DeleteCachedPost(newPost.hash);
                                                 popperWrapper.remove();
@@ -157,7 +157,7 @@ function UpdateDeletedPosts(newPosts = []) {
                                         });
                                         popperWrapper.querySelector('.list-group').appendChild(clonedButton);
                                     }
-                                }, 50);
+                                }, 10);
                             })
                         }
                         break;
@@ -851,8 +851,8 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
 
             const CacheCommentsHTML = CreateToggleHTML("Cache comments", "Preserve the first page of comments on a post once viewed in case of deletion.", (localStorage.getItem("p1") === null) ? true : (localStorage.getItem("p1") === "t"), "cache-comments");
             const FollowingDefaultHTML = CreateToggleHTML("Default to the following tab?", "On the home page, show following first to completely remove Internal Server Errors caused by the for you page.", (localStorage.getItem("p2") === null) ? true : (localStorage.getItem("p2") === "t"), "following-default");
-            const DontCachePostHTML = `<div class="form-group"><label class="control-label"><!---->Don't Cache Posts Past<!----></label><select class="form-control" id="CachePostsDeleteBy" value="${(localStorage.getItem("p3") === null) ? "3" : localStorage.getItem("p3")}"><option value="1">1 day</option><option value="3">3 days</option><option value="7">7 days</option><option value="30">30 days</option></select></div>`;
-            const ClearCachePostHTML = `<button id="ClearCache" type="button" class="button -primary -solid" style="font-size: 13px; font-weight: 700; line-height: 33px; overflow: hidden; border-color: var(--theme-fg); color: var(--theme-fg); background-color: var(--theme-bg-actual); vertical-align: middle; cursor: pointer; white-space: nowrap; user-select: none; border-style: solid; border-color: #0000;  outline: 0; font-family: Nunito,Helvetica Neue,Helvetica,Arial,sans-serif; transition: transform .2s cubic-bezier(.19,1,.2,1); display: inline-block; text-decoration: none !important;"><!----><!----><span>Clear ${Object.keys(cachedPosts).length} Cached Posts (${formatBytes((localStorage.getItem("gjcacheposts") ?? "").length, 1)})</span><!----></button>`;
+            const DontCachePostHTML = `<div class="form-group"><label class="control-label"><!---->Don't Cache & Store Posts Past<!----></label><select class="form-control" id="CachePostsDeleteBy" value="${(localStorage.getItem("p3") === null) ? "3" : localStorage.getItem("p3")}"><option value="1">1 day</option><option value="3">3 days</option><option value="7">7 days</option><option value="30">30 days</option><option value="99">Always Store</option></select></div>`;
+            const ClearCachePostHTML = `<button id="ClearCache" type="button" class="button -primary -solid" style="font-size: 13px; font-weight: 700; line-height: 33px; overflow: hidden; border-color: var(--theme-fg); color: var(--theme-fg); background-color: var(--theme-bg-actual); vertical-align: middle; cursor: pointer; white-space: nowrap; user-select: none; border-style: solid; border-color: #0000;  outline: 0; font-family: Nunito,Helvetica Neue,Helvetica,Arial,sans-serif; transition: transform .2s cubic-bezier(.19,1,.2,1); display: inline-block; text-decoration: none !important;"><!----><!----><span>Clear ${Object.keys(cachedPosts).length} Cached/Preserved Posts (${formatBytes((localStorage.getItem("gjcacheposts") ?? "").length, 1)})</span><!----></button>`;
 
             const MainContent = document.querySelector('.loading-fade-content');
             MainContent.insertAdjacentHTML('afterbegin', ClearCachePostHTML);
@@ -866,9 +866,9 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
                 Set_Days = parseInt(ev.target.value);
             })
             document.querySelector("#ClearCache").addEventListener('click', () => {
-                if (confirm("Are you sure you want to clear your cached posts? You won't be able to recover deleted posts.")) {
+                if (confirm("Are you sure you want to clear all cached & preserved posts? You won't be able to recover deleted posts.")) {
                     localStorage.removeItem("gjcacheposts");
-                    document.querySelector('#ClearCache').querySelector('span').innerText = "Cleared All Cached Posts"
+                    document.querySelector('#ClearCache').querySelector('span').innerText = "Cleared All Cached/Preserved Posts"
                     cachedPosts = {};
                     deletedPosts = {};
                 }
