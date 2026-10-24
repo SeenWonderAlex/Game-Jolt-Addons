@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Jolt Feed Preserver
 // @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
-// @version      1.0.10
+// @version      1.0.11
 // @description  Preserve deleted posts of your following feed. This also gives the option to default the following tab on Game Jolt.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
@@ -21,6 +21,7 @@ let periodEnd = 0;
 let periodEndNewtime = true;
 let lastWidthCheck = window.innerWidth;
 let isTraversingBack = false;
+let comeFromNonRefresh = false;
 
 let cachedChildComments = [];
 let currentDeletedPost = undefined;
@@ -30,8 +31,10 @@ let CheckCacheEveryCheck = false;
 let Set_CacheComments = (localStorage.getItem("p1") === null) ? true : (localStorage.getItem("p1") === "t");
 let Set_FollowingPage = (localStorage.getItem("p2") === null) ? true : (localStorage.getItem("p2") === "t");
 let Set_Days = parseInt((localStorage.getItem("p3") === null) ? "3" : localStorage.getItem("p3"));
+let Set_DaysDeleted = parseInt((localStorage.getItem("p4") === null) ? "30" : localStorage.getItem("p4"));
 
 if (isNaN(Set_Days)) Set_Days = 3;
+if (isNaN(Set_DaysDeleted)) Set_DaysDeleted = 30;
 
 const bc = new BroadcastChannel("gj-feed-preserver");
 
@@ -82,16 +85,14 @@ function UpdateCachedPosts(newPosts = []) {
             cachedPosts[postId] = newPost;
         }
     }
-    if (Set_Days < 99) {
-        try {
-            for (const cachedPost of Object.values(cachedPosts)) {
-                if (cachedPost.added_on <= new Date(Date.now() - (86400000 * Set_Days))) {
-                    delete cachedPosts[cachedPost.hash];
-                }
+    try {
+        for (const cachedPost of Object.values(cachedPosts)) {
+            if ((!cachedPost.del && cachedPost.added_on <= new Date(Date.now() - (86400000 * Set_Days))) || (Set_DaysDeleted < 99 && cachedPost.del && cachedPost.added_on <= new Date(Date.now() - (86400000 * Set_DaysDeleted)))) {
+                delete cachedPosts[cachedPost.hash];
             }
-        } catch (error) {
-            console.error(error);
         }
+    } catch (error) {
+        console.error(error);
     }
     localStorage.setItem("gjcacheposts", JSON.stringify(cachedPosts));
 }
@@ -104,8 +105,7 @@ function DeleteCachedPost(hash) {
             console.error("[Game Jolt Feed Preserver] Failed to load cached posts. Overriding.");
         }
     }
-    if (cachedPosts[hash])
-    {
+    if (cachedPosts[hash]) {
         console.log("[Game Jolt Feed Preserver] Successfully deleted post " + hash + " off the cache.");
         delete cachedPosts[hash];
     }
@@ -122,6 +122,7 @@ function UpdateDeletedPosts(newPosts = []) {
             deletedPosts[postId] = newPost;
         }
     }
+    if (newPosts.length <= 0) newPosts = Object.values(deletedPosts);
     setTimeout(() => {
         const postContents = document.querySelectorAll('.fireside-post-lead-content');
         for (const postContent of postContents) {
@@ -136,10 +137,8 @@ function UpdateDeletedPosts(newPosts = []) {
                             ele.querySelector('.popper>button').addEventListener('click', (ev) => {
                                 setTimeout(() => {
                                     const popperWrapper = document.querySelector('.popper-wrapper');
-                                    if (popperWrapper)
-                                    {
-                                        if (popperWrapper.querySelector('.jolticon-remove'))
-                                        {
+                                    if (popperWrapper) {
+                                        if (popperWrapper.querySelector('.jolticon-remove')) {
                                             popperWrapper.querySelector('.jolticon-remove').parentElement.remove();
                                         }
                                         const clonedButton = popperWrapper.querySelector('.jolticon-link').parentElement.cloneNode(true);
@@ -148,8 +147,7 @@ function UpdateDeletedPosts(newPosts = []) {
                                         clonedButton.querySelector('.jolticon').classList.add("notice");
                                         clonedButton.childNodes[1].nodeValue = " Remove (preserved)"
                                         clonedButton.addEventListener('click', (ev) => {
-                                            if (confirm("Are you sure you want to remove this preserved post? It can't be restored once removed."))
-                                            {
+                                            if (confirm("Are you sure you want to remove this preserved post? It can't be restored once removed.")) {
                                                 DeleteCachedPost(newPost.hash);
                                                 popperWrapper.remove();
                                                 ele.closest('.-item').remove();
@@ -294,6 +292,10 @@ function setupHook(xhr) {
                     deletedPost.status = "active";
                 }
                 deletedPost.can_comment = false;
+                if (!deletedPost.del) {
+                    deletedPost.del = true;
+                    UpdateCachedPosts([deletedPost]); // Add the del label.
+                }
                 let json = {
                     "action_resource": "Fireside_Post",
                     "action_resource_id": deletedPost.id,
@@ -442,6 +444,10 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
                 for (const listedPost of listOfPosts) {
                     postList.push(listedPost.action_resource_model);
                 }
+                if (comeFromNonRefresh) {
+                    comeFromNonRefresh = false;
+                    UpdateDeletedPosts(); // Check if the deleted posts show up as grayscale.
+                }
                 UpdateCachedPosts(postList);
                 console.log("[Game Jolt Feed Preserver] Cached " + postList.length + " posts");
             } catch (error) {
@@ -452,10 +458,12 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
 
         if (isTraversingBack) {
             isTraversingBack = false;
+            comeFromNonRefresh = true;
             console.log("[Game Jolt Feed Preserver] Automatically detected the first 5 posts being refreshed due to back button.");
         }
         else if ((lastWidthCheck >= 1200 && window.innerWidth < 1200) || (window.innerWidth >= 1200 && lastWidthCheck < 1200)) // Game Jolt automatically refresh the first 5 posts if resized above or below 1200px, which messes up the displayed posts system. Ignore clearing the displayed posts to avoid posts from appearing as deleted.
         {
+            comeFromNonRefresh = true;
             console.log("[Game Jolt Feed Preserver] Automatically detected the first 5 posts being refreshed due to width change.");
         }
         else {
@@ -851,11 +859,13 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
 
             const CacheCommentsHTML = CreateToggleHTML("Cache comments", "Preserve the first page of comments on a post once viewed in case of deletion.", (localStorage.getItem("p1") === null) ? true : (localStorage.getItem("p1") === "t"), "cache-comments");
             const FollowingDefaultHTML = CreateToggleHTML("Default to the following tab?", "On the home page, show following first to completely remove Internal Server Errors caused by the for you page.", (localStorage.getItem("p2") === null) ? true : (localStorage.getItem("p2") === "t"), "following-default");
-            const DontCachePostHTML = `<div class="form-group"><label class="control-label"><!---->Don't Cache & Store Posts Past<!----></label><select class="form-control" id="CachePostsDeleteBy" value="${(localStorage.getItem("p3") === null) ? "3" : localStorage.getItem("p3")}"><option value="1">1 day</option><option value="3">3 days</option><option value="7">7 days</option><option value="30">30 days</option><option value="99">Always Store</option></select></div>`;
+            const DontCachePostHTML = `<div class="form-group"><label class="control-label"><!---->Don't Cache Posts Past<!----></label><select class="form-control" id="CachePostsDeleteBy" value="${(localStorage.getItem("p3") === null) ? "3" : localStorage.getItem("p3")}"><option value="1">1 day</option><option value="3">3 days</option><option value="7">7 days</option><option value="30">30 days</option></select></div>`;
+            const DontPreservePostHTML = `<div class="form-group"><label class="control-label"><!---->Don't Store Deleted Posts Past<!----></label><select class="form-control" id="PreservedPostsDeleteBy" value="${(localStorage.getItem("p4") === null) ? "30" : localStorage.getItem("p4")}"><option value="1">1 day</option><option value="3">3 days</option><option value="7">7 days</option><option value="30">30 days</option><option value="99">Always Store</option></select></div>`;
             const ClearCachePostHTML = `<button id="ClearCache" type="button" class="button -primary -solid" style="font-size: 13px; font-weight: 700; line-height: 33px; overflow: hidden; border-color: var(--theme-fg); color: var(--theme-fg); background-color: var(--theme-bg-actual); vertical-align: middle; cursor: pointer; white-space: nowrap; user-select: none; border-style: solid; border-color: #0000;  outline: 0; font-family: Nunito,Helvetica Neue,Helvetica,Arial,sans-serif; transition: transform .2s cubic-bezier(.19,1,.2,1); display: inline-block; text-decoration: none !important;"><!----><!----><span>Clear ${Object.keys(cachedPosts).length} Cached/Preserved Posts (${formatBytes((localStorage.getItem("gjcacheposts") ?? "").length, 1)})</span><!----></button>`;
 
             const MainContent = document.querySelector('.loading-fade-content');
             MainContent.insertAdjacentHTML('afterbegin', ClearCachePostHTML);
+            MainContent.insertAdjacentHTML('afterbegin', DontPreservePostHTML);
             MainContent.insertAdjacentHTML('afterbegin', DontCachePostHTML);
             MainContent.insertAdjacentHTML('afterbegin', FollowingDefaultHTML);
             MainContent.insertAdjacentHTML('afterbegin', CacheCommentsHTML);
@@ -864,6 +874,11 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
             document.querySelector("#CachePostsDeleteBy").addEventListener('change', (ev) => {
                 localStorage.setItem("p3", ev.target.value.toString())
                 Set_Days = parseInt(ev.target.value);
+            })
+            document.querySelector("#PreservedPostsDeleteBy").value = (localStorage.getItem("p4") === null) ? "30" : localStorage.getItem("p4");
+            document.querySelector("#PreservedPostsDeleteBy").addEventListener('change', (ev) => {
+                localStorage.setItem("p4", ev.target.value.toString())
+                Set_DaysDeleted = parseInt(ev.target.value);
             })
             document.querySelector("#ClearCache").addEventListener('click', () => {
                 if (confirm("Are you sure you want to clear all cached & preserved posts? You won't be able to recover deleted posts.")) {
