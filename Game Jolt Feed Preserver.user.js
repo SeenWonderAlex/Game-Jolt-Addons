@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Jolt Feed Preserver
 // @namespace    https://github.com/SeenWonderAlex/Game-Jolt-Addons
-// @version      1.0.11
+// @version      1.0.12
 // @description  Preserve deleted posts of your following feed. This also gives the option to default the following tab on Game Jolt.
 // @author       SeenWonderAlex
 // @match        *://gamejolt.com/*
@@ -561,7 +561,6 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
     else if (url.includes("/site-api/web/posts/view/")) {
         lastWidthCheck = window.innerWidth;
         const post_slug = url.split("/site-api/web/posts/view/")[1]
-
         if (location.search === "?cached") {
             if (localStorage.getItem("gjcacheposts") !== null) {
                 try {
@@ -618,9 +617,70 @@ window.XMLHttpRequest.prototype.open = function (method, url, async, user, passw
                     }),
                     configurable: true
                 });
-                this.dispatchEvent(new ProgressEvent("load"));
-                this.dispatchEvent(new ProgressEvent("loadend"));
             };
+            this.dispatchEvent(new ProgressEvent("load"));
+            this.dispatchEvent(new ProgressEvent("loadend"));
+        }
+        else {
+            let DetectedDeleted = false;
+            this.addEventListener('error', function (ev) {
+                if (DetectedDeleted) {
+                    ev.stopImmediatePropagation();
+                }
+            });
+            this.addEventListener('load', function () {
+                try {
+                    if (this.status == 404) {
+                        console.log("[Game Jolt Feed Reserver] Attempted to load a post that is deleted, locating cached post: " + post_slug);
+                        cachedPosts = JSON.parse(localStorage.getItem("gjcacheposts"));
+                        if (cachedPosts[post_slug]) {
+                            DetectedDeleted = true;
+                            deletedPosts[post_slug] = cachedPosts[post_slug];
+                            let post = cachedPosts[post_slug];
+                            post.allow_comments = 0;
+                            Object.defineProperty(this, 'readyState', {
+                                value: XMLHttpRequest.DONE,
+                                configurable: true
+                            });
+                            Object.defineProperty(this, 'status', {
+                                value: 200,
+                                configurable: true
+                            });
+                            Object.defineProperty(this, 'statusText', {
+                                value: "OK",
+                                configurable: true
+                            });
+                            Object.defineProperty(this, 'responseType', {
+                                value: "string",
+                                configurable: true
+                            });
+                            Object.defineProperty(this, 'responseText', {
+                                value: JSON.stringify({
+                                    ...RegularOutput, ...{
+                                        "payload": {
+                                            "communityNotifications": [],
+                                            "fb": {
+                                                "description": "[deleted]",
+                                                "title": "[deleted]",
+                                                "type": "article"
+                                            },
+                                            "twitter": {
+                                                "card": "summary_large_image",
+                                                "description": "[deleted]",
+                                                "title": "[deleted]"
+                                            },
+                                            "post": post
+                                        }
+                                    }
+                                }),
+                                configurable: true
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error(error);
+                }
+            });
         }
     }
     else if (url.includes("/site-api/comments/Fireside_Post/")) {
